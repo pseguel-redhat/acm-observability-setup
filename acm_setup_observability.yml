@@ -1,0 +1,119 @@
+---
+- hosts: localhost
+
+  module_defaults:
+    group/k8s:
+      host: "{{ acm_host }}"
+      validate_certs: no
+
+  tasks:
+    - name: Log in to ACM cluster
+      k8s_auth:
+        username: "{{ acm_user }}"
+        password: "{{ acm_pass }}"
+      register: k8s_auth_results
+        
+    - name: Create a k8s namespace
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        name: open-cluster-management-observability
+        api_version: v1
+        kind: Namespace
+        state: present
+
+    - name: Get Pull Secret for Observability
+      k8s_info:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        api_version: v1
+        kind: Secret
+        name: pull-secret
+        namespace: openshift-config
+      register: pull_secret    
+
+    - name: Create/Use Pull Secret for Observability
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        state: present
+        name: multiclusterhub-operator-pull-secret
+        namespace: open-cluster-management-observability
+        definition:
+          api_version: v1
+          kind: Secret
+          name: multiclusterhub-operator-pull-secret
+          namespace: open-cluster-management-observability
+          data:
+            .dockerconfigjson: "{{ pull_secret.resources[0].data['.dockerconfigjson'] }}"
+
+    - name: Get AWS creds of current OCP Cluster
+      k8s_info:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        api_version: v1
+        kind: Secret
+        name: aws-cloud-credentials
+        namespace: openshift-machine-api 
+      register: aws_secret 
+
+    - name: Object storage secret payload (thanos.yml)
+      set_fact:
+        thanos_data: |
+          type: s3
+          config:
+            bucket: thanos-object-storage
+            endpoint: "s3.{{ aws_region }}.amazonaws.com"
+            signature_version2: false
+            insecure: true
+            access_key: "{{ aws_secret.resources[0].data['aws_access_key_id']}}"
+            secret_key: "{{ aws_secret.resources[0].data['aws_secret_access_key']}}"
+
+    - name: B64 data
+      set_fact:
+        thanos_data_b64: "{{  thanos_data | b64encode }}"
+
+    - name: Create a secret for object storage
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        definition:
+          api_version: v1
+          kind: Secret
+          metadata:
+            name: thanos-object-storage
+            namespace: open-cluster-management-observability
+          type: Opaque
+          data:
+            thanos.yaml: "{{ thanos_data_b64 }}"
+
+    - name: Create the new CR for MultiClusterObservability
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        state: present
+        api_version: observability.open-cluster-management.io/v1beta1
+        kind: MultiClusterObservability
+        name: observability #Your customized name of MulticlusterObservability CR
+        definition:
+          api_version: observability.open-cluster-management.io/v1beta1
+          kind: MultiClusterObservability
+          metadata:
+            name: observability #Your customized name of MulticlusterObservability CR
+          spec:
+            availabilityConfig: High 
+            imagePullPolicy: Always
+            imagePullSecret: multiclusterhub-operator-pull-secret
+            observabilityAddonSpec: 
+              enableMetrics: true 
+              interval: 60 
+              retentionResolution1h: 30d 
+              retentionResolution5m: 14d
+              retentionResolutionRaw: 5d
+              storageConfigObject:
+                metricObjectStorage:
+                  name: thanos-object-storage
+                  key: thanos.yaml
+                statefulSetSize: 10Gi 
+              statefulSetStorageClass: gp2
+
+    - name: Log out
+      k8s_auth:
+        state: absent
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+
