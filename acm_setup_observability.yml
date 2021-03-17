@@ -43,6 +43,7 @@
           namespace: open-cluster-management-observability
           data:
             .dockerconfigjson: "{{ pull_secret.resources[0].data['.dockerconfigjson'] }}"
+          type: kubernetes.io/dockerconfigjson
 
     - name: Get AWS creds of current OCP Cluster
       k8s_info:
@@ -58,12 +59,12 @@
         thanos_data: |
           type: s3
           config:
-            bucket: thanos-object-storage
-            endpoint: "s3.{{ aws_region }}.amazonaws.com"
+            bucket: {{ bucket_name | default('thanos-object-storage') }}
+            endpoint: s3.{{ aws_region }}.amazonaws.com
             signature_version2: false
             insecure: true
-            access_key: "{{ aws_secret.resources[0].data['aws_access_key_id']}}"
-            secret_key: "{{ aws_secret.resources[0].data['aws_secret_access_key']}}"
+            access_key: {{ aws_secret.resources[0].data['aws_access_key_id']}}
+            secret_key: {{ aws_secret.resources[0].data['aws_secret_access_key']}}
 
     - name: B64 data
       set_fact:
@@ -72,15 +73,16 @@
     - name: Create a secret for object storage
       k8s:
         api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        namespace: open-cluster-management-observability
+        state: present
         definition:
-          api_version: v1
+          apiVersion: v1
           kind: Secret
           metadata:
             name: thanos-object-storage
-            namespace: open-cluster-management-observability
           type: Opaque
-          data:
-            thanos.yaml: "{{ thanos_data_b64 }}"
+          stringData:
+            thanos.yaml: "{{ thanos_data }}"
 
     - name: Create the new CR for MultiClusterObservability
       k8s:
@@ -90,7 +92,7 @@
         kind: MultiClusterObservability
         name: observability #Your customized name of MulticlusterObservability CR
         definition:
-          api_version: observability.open-cluster-management.io/v1beta1
+          apiVersion: observability.open-cluster-management.io/v1beta1
           kind: MultiClusterObservability
           metadata:
             name: observability #Your customized name of MulticlusterObservability CR
@@ -101,14 +103,14 @@
             observabilityAddonSpec: 
               enableMetrics: true 
               interval: 60 
-              retentionResolution1h: 30d 
-              retentionResolution5m: 14d
-              retentionResolutionRaw: 5d
-              storageConfigObject:
-                metricObjectStorage:
-                  name: thanos-object-storage
-                  key: thanos.yaml
-                statefulSetSize: 10Gi 
+            retentionResolution1h: 30d 
+            retentionResolution5m: 14d
+            retentionResolutionRaw: 5d
+            storageConfigObject:
+              metricObjectStorage:
+                name: "{{ bucket_name }}"
+                key: thanos.yaml
+              statefulSetSize: 10Gi 
               statefulSetStorageClass: gp2
 
     - name: Log out
