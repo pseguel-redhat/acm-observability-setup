@@ -6,7 +6,7 @@ OCP cluster with ACM 2.2 created in RHPDS.
 
 Modify extra-vars-example.yml with OCP URL and credentials.
 
-##Usage:
+## Usage:
 
 ```
 ansible-playbook acm_setup_observability.yml -e @extra_vars.yml
