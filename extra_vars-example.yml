@@ -1,0 +1,5 @@
+---
+acm_host: https://OCP-API-HOST:6443
+acm_user: admin-user
+acm_pass: admin-pass
+aws_region: us-east-1
