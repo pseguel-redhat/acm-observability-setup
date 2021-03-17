@@ -5,6 +5,8 @@ in RHACM. In this case, the playbook will manipulate a
 OCP cluster with ACM 2.2 created in RHPDS.
 
 Modify extra-vars-example.yml with OCP URL and credentials.
+Bucket name can be specified in extra-vars.yml as well.
+
 
 ## Usage:
 
