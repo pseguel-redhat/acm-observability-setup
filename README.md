@@ -18,7 +18,7 @@ ansible-playbook acm_setup_observability.yml -e @extra_vars.yml
 
 These variables are set as extra vars.
 
-- acm_host: OpenShift API URL, the same used in `oc` command
-- acm_user: admin-user
-- acm_pass: admin-pass
-- aws_region: us-east-1
+- `acm_host`: OpenShift API URL, the same used in `oc` command
+- `acm_user`: admin-user
+- `acm_pass`: admin-pass
+- `aws_region`: us-east-1
