@@ -22,3 +22,5 @@ These variables are set as extra vars.
 - `acm_user`: admin-user
 - `acm_pass`: admin-pass
 - `aws_region`: us-east-1
+
+Copy the `extra_vars-example.yml` and modify it with proper values.
